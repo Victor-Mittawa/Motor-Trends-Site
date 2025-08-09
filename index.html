@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Latest articles from Motor Trends MW">
+  <title>Motor Trends MW - Articles</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #eee;
+      margin: 0;
+      padding: 20px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 {
+      color: #e63946;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    article {
+      border-bottom: 1px solid #444;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+    }
+    article img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      height: auto;
+    }
+    article h2 {
+      margin: 0 0 10px 0;
+      font-size: 1.6rem;
+    }
+    article a.title-link {
+      color: #f07167;
+      text-decoration: none;
+    }
+    article a.title-link:hover {
+      text-decoration: underline;
+    }
+    article time {
+      font-size: 0.9rem;
+      color: #aaa;
+      display: block;
+      margin-bottom: 12px;
+    }
+    article p.description {
+      margin-top: 12px;
+      line-height: 1.4;
+      color: #ccc;
+    }
+    
+    /* Loading and error states */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #e63946;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+    
+    .error-message {
+      color: #e63946;
+      padding: 15px;
+      border: 1px solid #e63946;
+      border-radius: 5px;
+      background: rgba(230, 57, 70, 0.1);
+      text-align: center;
+    }
+    
+    .retry-button {
+      background: #e63946;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    
+    .retry-button:hover {
+      background: #c1121f;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Motor Trends MW - Latest Articles</h1>
+  </header>
+  
+  <div id="articles">
+    <div class="loading-container">
+      <span class="loading"></span>
+      <span>Loading articles...</span>
+    </div>
+  </div>
+
+  <script>
+    const RSS_URL = 'https://script.google.com/macros/s/AKfycby4jJBUf_2nnOeWmpukxjjbH5wBxFfOwiROkt6uWApmMuD-YoI3Blf3Nm8luTX1RCR4IQ/exec';
+    let cachedArticles = null;
+
+    function parseDate(pubDateRaw) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(pubDateRaw)) {
+        const [year, month, day] = pubDateRaw.split("-");
+        return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      } 
+      const parsed = new Date(pubDateRaw);
+      if (!isNaN(parsed)) {
+        return parsed.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      return 'Invalid Date';
+    }
+
+    function showError(message) {
+      const container = document.getElementById("articles");
+      container.innerHTML = `
+        <div class="error-message">
+          ${message}
+          <button class="retry-button" onclick="fetchRSS()">Retry</button>
+        </div>
+      `;
+    }
+
+    async function fetchRSS() {
+      try {
+        const container = document.getElementById("articles");
+        container.innerHTML = '<div class="loading-container"><span class="loading"></span><span>Loading articles...</span></div>';
+        
+        if (cachedArticles) {
+          renderArticles(cachedArticles);
+          return;
+        }
+
+        const response = await fetch(RSS_URL);
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, "application/xml");
+
+        const items = xmlDoc.querySelectorAll("item");
+        if (items.length === 0) {
+          container.textContent = "No articles found.";
+          return;
+        }
+
+        cachedArticles = items;
+        renderArticles(items);
+      } catch (error) {
+        console.error("Failed to load RSS feed:", error);
+        showError("Failed to load articles. Please check your connection and try again.");
+      }
+    }
+
+    function renderArticles(items) {
+      const container = document.getElementById("articles");
+      container.innerHTML = "";
+      
+      items.forEach((item, index) => {
+        const title = item.querySelector("title")?.textContent || "No title";
+        const link = `article.html?id=${index}`;
+        const descriptionCDATA = item.querySelector("description")?.textContent || "";
+        
+        const imgMatch = descriptionCDATA.match(/<img.*?src=["'](.*?)["']/);
+        const imgSrc = imgMatch ? imgMatch[1] : null;
+
+        const descriptionText = descriptionCDATA.replace(/<img.*?>/, '').trim();
+        const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+        const pubDate = parseDate(pubDateRaw);
+
+        const articleEl = document.createElement("article");
+
+        articleEl.innerHTML = `
+          ${imgSrc ? `<img src="${imgSrc}" alt="${title}" loading="lazy" />` : ''}
+          <h2><a href="${link}" class="title-link">${title}</a></h2>
+          <time datetime="${pubDateRaw}">${pubDate}</time>
+          <p class="description">${descriptionText}</p>
+        `;
+
+        container.appendChild(articleEl);
+      });
+    }
+
+    fetchRSS();
+  </script>
+  <footer style="
+  text-align: center; 
+  padding: 15px 0; 
+  margin-top: 40px; 
+  font-size: 0.9rem; 
+  color: #888;
+  border-top: 1px solid #333;
+  font-family: Arial, sans-serif;
+">
+  &copy; 2025 @NexCodeHub
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Motor Trends MW - Article</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #eee;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    a.back-link {
+      color: #e63946;
+      text-decoration: none;
+      display: inline-block;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+    a.back-link:hover {
+      text-decoration: underline;
+    }
+    h1 {
+      color: #f07167;
+      margin-bottom: 15px;
+    }
+    img.article-image {
+      max-width: 100%;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: block;
+    }
+    time {
+      display: block;
+      margin-bottom: 20px;
+      color: #aaa;
+    }
+    .article-content {
+      font-size: 1.1rem;
+      color: #ccc;
+    }
+    .article-content br {
+      display: none; /* We're using paragraphs instead */
+    }
+    .article-content p {
+      margin-bottom: 1.5em;
+      line-height: 1.7;
+    }
+    .article-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin: 1em 0;
+    }
+    .article-content iframe {
+      max-width: 100%;
+      margin: 1em 0;
+    }
+    .article-content h2 {
+      color: #f07167;
+      margin: 1.5em 0 0.8em 0;
+      font-size: 1.4em;
+    }
+    .article-content h3 {
+      color: #f07167;
+      margin: 1.3em 0 0.7em 0;
+      font-size: 1.2em;
+    }
+    .article-content ul,
+    .article-content ol {
+      margin: 1em 0;
+      padding-left: 2em;
+    }
+    .article-content blockquote {
+      border-left: 3px solid #e63946;
+      padding-left: 1em;
+      margin: 1.5em 0;
+      color: #aaa;
+      font-style: italic;
+    }
+    
+    /* Loading and error states */
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .loading-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #e63946;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+    
+    .error-message {
+      color: #e63946;
+      padding: 15px;
+      border: 1px solid #e63946;
+      border-radius: 5px;
+      background: rgba(230, 57, 70, 0.1);
+    }
+    
+    .retry-button {
+      background: #e63946;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    
+    .retry-button:hover {
+      background: #c1121f;
+    }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="back-link">&larr; Back to articles</a>
+  <div id="article-container">
+    <div class="loading-container">
+      <span class="loading"></span>
+      <span>Loading article...</span>
+    </div>
+  </div>
+
+  <script>
+    const RSS_URL = 'https://script.google.com/macros/s/AKfycby4jJBUf_2nnOeWmpukxjjbH5wBxFfOwiROkt6uWApmMuD-YoI3Blf3Nm8luTX1RCR4IQ/exec';
+    let cachedArticles = null;
+
+    function parseDate(pubDateRaw) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(pubDateRaw)) {
+        const [year, month, day] = pubDateRaw.split("-");
+        return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      const parsed = new Date(pubDateRaw);
+      if (!isNaN(parsed)) {
+        return parsed.toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
+      return 'Invalid Date';
+    }
+
+    function getArticleId() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('id');
+    }
+
+    function showError(message) {
+      const container = document.getElementById("article-container");
+      container.innerHTML = `
+        <div class="error-message">
+          ${message}
+          <button class="retry-button" onclick="loadArticle()">Retry</button>
+        </div>
+      `;
+    }
+
+    async function loadArticle() {
+      const id = getArticleId();
+      const container = document.getElementById("article-container");
+      
+      container.innerHTML = '<div class="loading-container"><span class="loading"></span><span>Loading article...</span></div>';
+
+      if (id === null) {
+        showError('Article ID not provided.');
+        return;
+      }
+
+      try {
+        const response = await fetch(RSS_URL);
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const text = await response.text();
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(text, "application/xml");
+        const items = xmlDoc.querySelectorAll("item");
+
+        cachedArticles = items;
+        renderArticle(items, id);
+      } catch (error) {
+        console.error('Failed to load article:', error);
+        showError('Failed to load article. Please check your connection and try again.');
+      }
+    }
+
+function renderArticle(items, id) {
+  const container = document.getElementById("article-container");
+  
+  if (id < 0 || id >= items.length) {
+    showError('Article not found.');
+    return;
+  }
+
+  const item = items[id];
+  const title = item.querySelector("title")?.textContent || "No title";
+  const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+  const pubDate = parseDate(pubDateRaw);
+
+  // Get full content
+  let fullContent = '';
+  try {
+    fullContent = item.getElementsByTagNameNS("http://purl.org/rss/1.0/modules/content/", "encoded")[0]?.textContent || 
+                  item.querySelector("content\\:encoded, encoded")?.textContent || 
+                  "No content available";
+  } catch (e) {
+    fullContent = item.querySelector("description")?.textContent || "No content available";
+  }
+
+  // Normalize line breaks
+  fullContent = fullContent
+    .replace(/\r\n/g, "\n")       // Normalize CRLF to LF
+    .replace(/\n{2,}/g, "</p><p>") // Double newlines → new paragraph
+    .replace(/\n/g, "<br>");       // Single newline → line break
+
+  // Remove any empty paragraph tags created accidentally
+  fullContent = fullContent
+    .replace(/<p><\/p>/g, '') 
+    .replace(/<br>\s*<br>/g, '<br>');
+
+  container.innerHTML = `
+    <h1>${title}</h1>
+    <time>${pubDate}</time>
+    <div class="article-content"><p>${fullContent}</p></div>
+  `;
+
+  document.title = `${title} | Motor Trends MW`;
+  processArticleContent();
+}
+
+    function processArticleContent() {
+      const contentDiv = document.querySelector('.article-content');
+      if (!contentDiv) return;
+
+      // Fix relative URLs
+      fixRelativeUrls(contentDiv);
+
+      // Style all images in content
+      const images = contentDiv.querySelectorAll('img');
+      images.forEach(img => {
+        if (!img.classList.contains('article-image')) {
+          img.style.maxWidth = '100%';
+          img.style.height = 'auto';
+          img.style.borderRadius = '8px';
+          img.style.margin = '1em 0';
+          if (!img.alt) img.alt = '';
+        }
+      });
+
+      // Style other elements
+      const iframes = contentDiv.querySelectorAll('iframe');
+      iframes.forEach(iframe => {
+        iframe.style.maxWidth = '100%';
+        iframe.style.margin = '1em 0';
+      });
+
+      const tables = contentDiv.querySelectorAll('table');
+      tables.forEach(table => {
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+        table.style.margin = '1em 0';
+      });
+    }
+
+    function fixRelativeUrls(container) {
+      const baseUrl = 'https://' + window.location.host;
+      
+      // Fix relative image paths
+      const images = container.querySelectorAll('img[src^="/"]');
+      images.forEach(img => {
+        const src = img.getAttribute('src');
+        if (src.startsWith('/')) {
+          img.src = baseUrl + src;
+        }
+      });
+      
+      // Fix relative links
+      const links = container.querySelectorAll('a[href^="/"]');
+      links.forEach(link => {
+        const href = link.getAttribute('href');
+        if (href.startsWith('/')) {
+          link.href = baseUrl + href;
+        }
+      });
+    }
+
+    loadArticle();
+  </script>
+  <footer style="
+  text-align: center; 
+  padding: 15px 0; 
+  margin-top: 40px; 
+  font-size: 0.9rem; 
+  color: #888;
+  border-top: 1px solid #333;
+  font-family: Arial, sans-serif;
+">
+  &copy; 2025 @NexCodeHub
+</footer>
+
+</body>
+</html>
